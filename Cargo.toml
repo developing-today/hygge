@@ -1,0 +1,12 @@
+[package]
+name = "hygge"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/developing-today/hygge"
+readme = "README.md"
+description = """
+(todo) Hygge, a KDL serializer 🥣
+"""
+
+[dependencies]
