@@ -3,11 +3,11 @@ use hygge::{KdlNodeBuilder, KdlValueBuilder};
 fn main() {
     let v = KdlValueBuilder;
     let mut kdl = KdlNodeBuilder::new("hygge");
-    let mut childs = KdlNodeBuilder::new("child");
-    childs
+    let mut childs = KdlNodeBuilder::new("child")
         .bool(true)
         .prop("uuid".to_string(), v.str("123".to_string()).to_owned());
-    kdl.nil()
+    kdl = kdl
+        .nil()
         .nil()
         .y()
         .n()
@@ -17,8 +17,8 @@ fn main() {
         .child(KdlNodeBuilder::new("child2"));
     println!("{}", kdl.build());
 
-    let mut kdl = KdlNodeBuilder::new("hygge");
-    kdl.nil()
+    let mut kdl = KdlNodeBuilder::new("hygge")
+        .nil()
         .nil()
         .y()
         .n()
@@ -28,10 +28,8 @@ fn main() {
         .child(KdlNodeBuilder::new("child2"))
         .child(KdlNodeBuilder::new("child4"))
         .prop("asd".to_string(), v.flt(1.into()));
-    let two = kdl.clone();
-    kdl.child(two.name("hygge2"))
-        .prop("asd".to_string(), v.str(2.to_string()));
-    println!("{}", kdl.build());
+    let two = &kdl.clone().child(kdl.name("hygge2")).prop("asd", v.str(2));
+    println!("{}", two.build());
 }
 
 /*
