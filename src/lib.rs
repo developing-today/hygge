@@ -33,14 +33,14 @@ pub struct KdlNodeBuilder {
     pub n: String,
     pub v: KdlValuesBuilder,
     pub p: KdlPropertiesBuilder,
-    pub c: KdlChildren,
+    pub c: KdlChildrenProxy,
 }
 
 #[derive(Debug, PartialEq)]
-pub struct KdlChildren(Vec<KdlNodeBuilder>);
-impl KdlChildren {
+pub struct KdlChildrenProxy(Vec<KdlNodeBuilder>);
+impl KdlChildrenProxy {
     pub fn new() -> Self {
-        KdlChildren(Vec::new())
+        KdlChildrenProxy(Vec::new())
     }
     // pub fn build(&self) -> Vec<KdlNode> {
 
@@ -422,7 +422,7 @@ impl KdlNodeBuilder {
             n: name.to_string(),
             v: KdlValuesBuilder::new(),
             p: KdlPropertiesBuilder::new(),
-            c: KdlChildren::new(),
+            c: KdlChildrenProxy::new(),
         }
     }
     pub fn build(self) -> KdlNode {
