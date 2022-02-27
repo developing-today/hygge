@@ -11,20 +11,20 @@ pub struct KdlValueBuilder;
 // }
 
 #[derive(Debug, PartialEq)]
-pub struct KdlValues(pub Vec<KdlValue>);
+pub struct KdlValuesProxy(pub Vec<KdlValue>);
 #[derive(Debug, PartialEq)]
 
 pub struct KdlValuesBuilder {
-    pub vals: KdlValues,
+    pub vals: KdlValuesProxy,
     pub v: KdlValueBuilder,
 }
 
 #[derive(Debug, PartialEq)]
-pub struct KdlProperties(pub HashMap<String, KdlValue>);
+pub struct KdlPropertiesProxy(pub HashMap<String, KdlValue>);
 
 #[derive(Debug, PartialEq)]
 pub struct KdlPropertiesBuilder {
-    pub props: KdlProperties,
+    pub props: KdlPropertiesProxy,
     pub v: KdlValueBuilder,
 }
 
@@ -168,7 +168,7 @@ impl KdlValueBuilder {
 impl KdlValuesBuilder {
     pub fn new() -> Self {
         Self {
-            vals: KdlValues(Vec::new()),
+            vals: KdlValuesProxy(Vec::new()),
             v: KdlValueBuilder,
         }
     }
@@ -269,15 +269,15 @@ impl KdlValuesBuilder {
 //     ...
 //   }
 
-impl KdlProperties {
+impl KdlPropertiesProxy {
     fn new() -> Self {
-        KdlProperties(HashMap::new())
+        KdlPropertiesProxy(HashMap::new())
     }
 }
 impl KdlPropertiesBuilder {
     pub fn new() -> Self {
         Self {
-            props: KdlProperties::new(),
+            props: KdlPropertiesProxy::new(),
             v: KdlValueBuilder,
         }
     }
@@ -393,7 +393,7 @@ impl KdlPropertiesBuilder {
 impl Default for KdlPropertiesBuilder {
     fn default() -> Self {
         Self {
-            props: KdlProperties::new(),
+            props: KdlPropertiesProxy::new(),
             v: KdlValueBuilder,
         }
     }
