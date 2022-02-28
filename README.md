@@ -13,6 +13,18 @@ because sometimes you need to input a file
 
 ---
 
+This is a small builder made to help one dynamically
+build out a KDL file with Rust.*
+- For now, the only thing _this_ crate does is build the Object.
+- One could reimplement display functions for their structs.
+- Then anywhere you output, it's kdl.
+
+*** Author is new to rust, this is a side project,
+any advice on improving the ergonomics or practices
+would be appreciated ***
+
+---
+
 ### Making Changes
 
 1. Fork the repository.

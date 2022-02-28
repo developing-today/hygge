@@ -1,5 +1,97 @@
+use core::panic;
 pub use kdl::{KdlNode, KdlValue};
-use std::collections::HashMap;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+};
+use std::{collections::HashMap, rc::Rc};
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HashSetMap<T> {
+    register: HashMap<Rc<u64>, Rc<T>>,
+}
+
+pub struct HashSetMapBuilder<T> {
+    hash_register: HashSetMap<T>,
+    hasher: Option<Rc<dyn Hasher>>,
+}
+impl<'a, T> HashSetMapBuilder<T>
+where
+    T: Hash + Eq + Clone + Default + ToString,
+    HashSetMapBuilder<T>: Default,
+{
+    pub fn insert(&mut self, hasher: &'a mut dyn Hasher, input: T) -> Option<Rc<T>> {
+        if self.hasher.is_none() {
+            panic!("HashSetMapBuilder::insert() -> hasher is None")
+        };
+        hasher.write(input.to_string().as_bytes());
+        let key = hasher.finish();
+        self.hash_register
+            .register
+            .insert(Rc::new(key), Rc::new(input))
+    }
+    pub fn new() -> Self {
+        Default::default()
+    }
+    pub fn new_with_capacity(capacity: usize) -> Self {
+        let mut hash_register = HashSetMap::default();
+        hash_register.register = HashMap::with_capacity(capacity);
+        Self {
+            hash_register,
+            hasher: None,
+        }
+    }
+    pub fn new_with_hasher(hasher: Rc<dyn Hasher>) -> Self {
+        Self {
+            hash_register: Default::default(),
+            hasher: Some(hasher),
+        }
+    }
+
+    pub fn new_with_capacity_and_hasher(capacity: usize, hasher: Rc<dyn Hasher>) -> Self {
+        let mut hash_register = HashSetMap::default();
+        hash_register.register = HashMap::with_capacity_and_hasher(capacity, Default::default());
+        Self {
+            hash_register,
+            hasher: Some(hasher),
+        }
+    }
+    pub fn build(self) -> HashMap<Rc<u64>, Rc<T>> {
+        self.hash_register.register
+    }
+
+    pub fn with_hasher(mut self, hasher: Rc<dyn Hasher>) -> Self {
+        self.hasher = Some(hasher);
+        self
+    }
+    pub fn hasher(&mut self, hasher: Rc<dyn Hasher>) -> &mut Self {
+        self.hasher = Some(hasher);
+        self
+    }
+
+    pub fn len(&self) -> usize {
+        self.hash_register.register.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.hash_register.register.is_empty()
+    }
+    pub fn clear(&mut self) {
+        self.hash_register.register.clear();
+    }
+}
+impl<T> Default for HashSetMapBuilder<T>
+where
+    T: Hash + Eq + Clone + Default + ToString,
+{
+    fn default() -> Self {
+        Self {
+            hash_register: HashSetMap {
+                register: HashMap::new(),
+            },
+            hasher: Some(Rc::new(DefaultHasher::new())),
+        }
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KdlValueBuilder;
@@ -165,6 +257,28 @@ impl KdlValueBuilder {
 //     }
 // }
 
+impl KdlValuesProxy {
+    pub fn add(mut self, val: KdlValue) -> Self {
+        self.0.push(val);
+        self
+    }
+    pub fn rem(mut self, index: usize) -> Self {
+        self.0.remove(index);
+        self
+    }
+    pub fn clear(mut self) -> Self {
+        self.0.clear();
+        self
+    }
+    pub fn set(mut self, vals: &mut KdlValuesProxy) -> Self {
+        self.0 = vals.0.clone();
+        self
+    }
+    pub fn append(mut self, vals: &mut KdlValuesProxy) -> Self {
+        self.0.append(&mut vals.0);
+        self
+    }
+}
 impl KdlValuesBuilder {
     pub fn new() -> Self {
         Self {
@@ -193,30 +307,28 @@ impl KdlValuesBuilder {
         self.vals.0.clear();
         self
     }
-    // pub fn set(mut self, vals: &mut KdlValues) -> Self {
-    //     self.vals
-    //     self
-    // }
-    // impl KdlValues(Vec<& mut KdlValue>)
-
-    // pub fn join(mut self, vals: & mut KdlValues) -> Self {
-    //     self.vals.append(vals);
-    //     self
-    // }
-    // pub fn extend(mut self, other: &mut Self) -> Self {
-    //     self.vals.0.extend(other.vals.0.iter());
-    //     self
-    // }
+    pub fn set(mut self, vals: &mut KdlValuesProxy) -> Self {
+        self.vals.0 = vals.0.clone();
+        self
+    }
+    pub fn join(mut self, vals: &mut KdlValuesProxy) -> Self {
+        self.vals.0.append(&mut vals.0);
+        self
+    }
+    pub fn extend(mut self, other: Self) -> Self {
+        self.vals.0.extend(other.vals.0);
+        self
+    }
 
     pub fn str(mut self, val: &mut str) -> Self {
         let v = &self.v;
         let value = v.str(val);
         self.add(value)
     }
-    // pub fn s(mut self, val: & mut str) -> Self {
-    //     let value = self.v.s(val);
-    //     self.add(value.to_string())
-    // }
+    pub fn s(mut self, val: &mut str) -> Self {
+        let value = self.v.s(val);
+        self.add(value)
+    }
 
     pub fn int(mut self, val: i64) -> Self {
         let value = self.v.int(val);
@@ -318,16 +430,27 @@ impl KdlPropertiesBuilder {
         self
     }
 
-    // pub fn join(mut self, props: & mut KdlProperties) -> Self {
-    //     self.props.0.extend(props.0.iter());
-    //     self
-    // }
-    // pub fn extend(mut self, other: & mut KdlPropertiesBuilder) -> Self {
-    //     for (key, value) in other.props.0.iter() {
-    //         self.props.0.insert(&mut key, &mut value);
-    //     }
-    //     self
-    // }
+    pub fn join(mut self, props: &mut KdlPropertiesProxy) -> Self {
+        //     self.props.0.clear();
+        //     for (key, &value) in props.iter() {
+        //         self.props.0.insert(key.to_string(), value);
+        //     }
+        //     self
+        let mut new = HashMap::new();
+        for (key, value) in props.0.iter() {
+            new.insert(key.to_string(), value.clone());
+        }
+        self.props.0.extend(new);
+        self
+    }
+    pub fn extend(mut self, other: KdlPropertiesBuilder) -> Self {
+        let mut new = HashMap::new();
+        for (key, value) in other.props.0.iter() {
+            new.insert(key.to_string(), value.clone());
+        }
+        self.props.0.extend(new);
+        self
+    }
 
     pub fn str(mut self, id: &mut str, val: &mut str) -> Self {
         let string = self.v.str(val);
@@ -390,14 +513,6 @@ impl KdlPropertiesBuilder {
 //         }
 //     }
 // }
-impl Default for KdlPropertiesBuilder {
-    fn default() -> Self {
-        Self {
-            props: KdlPropertiesProxy::new(),
-            v: KdlValueBuilder,
-        }
-    }
-}
 // impl Default for KdlValueBuilder {
 //     fn default() -> Self {
 //         Self {
@@ -411,10 +526,18 @@ impl Default for KdlPropertiesBuilder {
 //             n: self.n,
 //             v: &mut self.v.clone(),
 //             p: &mut self.p.clone(),
-//             c: &mut self.c.clone(),
+//             c: self.c.clone(),
 //         }
 //     }
 // }
+impl Default for KdlPropertiesBuilder {
+    fn default() -> Self {
+        Self {
+            props: KdlPropertiesProxy::new(),
+            v: KdlValueBuilder,
+        }
+    }
+}
 
 impl KdlNodeBuilder {
     pub fn new(name: &mut str) -> Self {
@@ -425,7 +548,7 @@ impl KdlNodeBuilder {
             c: KdlChildrenProxy::new(),
         }
     }
-    pub fn build(self) -> KdlNode {
+    pub fn build(mut self) -> KdlNode {
         KdlNode {
             name: self.n.to_string(),
             values: self.v.build(),
@@ -433,20 +556,20 @@ impl KdlNodeBuilder {
             children: self.c.build(),
         }
     }
-    // pub fn reset(mut self) -> Self {
-    //     self.reset_children().reset_values().reset_properties()
-    // }
-    // pub fn extend(mut self, val: & mut KdlNodeBuilder) -> Self {
-    //     self.v = self.v.extend(&mut val.v);
-    //     self.p = &mut self.p.extend(&mut val.p);
-    //     self.c.extend(val.c);
-    //     self
-    // }
-    // pub fn extend_children(mut self, val: & mut KdlNodeBuilder) -> Self {
-    //     let output = Vec::new();
-    //     self.c.extend(output);
-    //     self
-    // }
+    pub fn reset(mut self) -> Self {
+        self.reset_children().reset_values().reset_properties()
+    }
+    pub fn extend(mut self, val: KdlNodeBuilder) -> Self {
+        self.c.0.extend(val.c.0);
+        self.v = self.v.extend(val.v);
+        self.p.props.0.extend(val.p.props.0);
+        self
+    }
+    pub fn extend_children(mut self, val: &mut KdlNodeBuilder) -> Self {
+        let output = Vec::new();
+        self.c.0.extend(output);
+        self
+    }
 
     pub fn name(mut self, name: &mut str) -> Self {
         self.n = name.to_string();
@@ -461,37 +584,38 @@ impl KdlNodeBuilder {
         self
     }
 
-    // pub fn reset_child(mut self, child: usize) -> Self {
-    //     self.c[child] = &mut self.c[child].reset();
-    //     self
-    // }
-    // pub fn reset_child_values(mut self, child: usize) -> Self {
-    //     self.c[child] = &mut self.c[child].clone().reset_values();
-    //     self
-    // }
-    // pub fn reset_child_properties(mut self, child: usize) -> Self {
-    //     self.c[child] = &mut self.c[child].clone().reset_properties();
-    //     self
-    // }
-    // pub fn reset_children(mut self) -> Self {
-    //     // run reset on each child node
-    //     self.c = self
-    //         .c
-    //         .iter()
-    //         .map(|c| -> &KdlNodeBuilder { &c.reset() })
-    //         .collect();
-    //     self
-    // }
-    // pub fn reset_children_values(mut self) -> Self {
-    //     // run reset on each child node
-    //     self.c = self.c.into_iter().map(|c| c.reset()).collect();
-    //     self
-    // }
-    // pub fn reset_children_properties(mut self) -> Self {
-    //     // run reset on each child node
-    //     self.c = self.c.into_iter().map(|c| c.reset()).collect();
-    //     self
-    // }
+    pub fn reset_child(mut self, child: usize) -> Self {
+        // self.c.0[child] = self.c.0[child].reset();
+        self
+    }
+    pub fn reset_child_values(mut self, child: usize) -> Self {
+        // self.c.0[child] = self.c.0[child].reset_values();
+        self
+    }
+    pub fn reset_child_properties(mut self, child: usize) -> Self {
+        // self.c.0[child] = self.c.0[child].reset_properties();
+        self
+    }
+    pub fn reset_children(mut self) -> Self {
+        // run reset on each child node
+        // self.c.0 = self
+        //     .c
+        //     .0
+        //     .iter()
+        //     .map(|c| -> KdlNodeBuilder { c.reset() })
+        //     .collect();
+        self
+    }
+    pub fn reset_children_values(mut self) -> Self {
+        // run reset on each child node
+        self.c.0 = self.c.0.into_iter().map(|c| c.reset()).collect();
+        self
+    }
+    pub fn reset_children_properties(mut self) -> Self {
+        // run reset on each child node
+        self.c.0 = self.c.0.into_iter().map(|c| c.reset()).collect();
+        self
+    }
     pub fn add(mut self, val: KdlValue) -> Self {
         self.v = self.v.add(val);
         self
@@ -504,27 +628,27 @@ impl KdlNodeBuilder {
         self.v = self.v.rem(index);
         self
     }
-    // pub fn join(mut self, vals: & mut KdlValues) -> Self {
-    //     self.v = self.v.join(vals);
-    //     self
-    // }
-    // pub fn vals(mut self, vals: & mut KdlValues) -> Self {
-    //     self.v = self.v.join(vals);
-    //     self
-    // }
+    pub fn join(mut self, vals: &mut KdlValuesProxy) -> Self {
+        self.v = self.v.join(vals);
+        self
+    }
+    pub fn vals(mut self, vals: &mut KdlValuesProxy) -> Self {
+        self.v = self.v.join(vals);
+        self
+    }
     pub fn value(mut self, index: usize, val: KdlValue) -> Self {
         self.v = self.v.rem(index);
         self.v = self.v.add(val);
         self
     }
-    // pub fn set(mut self, vals: & mut KdlValues) -> Self {
-    //     self.v = self.v.set(vals);
-    //     self
-    // }
-    // pub fn values(mut self, vals: & mut KdlValues) -> Self {
-    //     self.v = self.v.set(vals);
-    //     self
-    // }
+    pub fn set(mut self, vals: &mut KdlValuesProxy) -> Self {
+        self.v = self.v.set(vals);
+        self
+    }
+    pub fn values(mut self, vals: &mut KdlValuesProxy) -> Self {
+        self.v = self.v.set(vals);
+        self
+    }
 
     pub fn put(mut self, key: &mut str, val: KdlValue) -> Self {
         self.p = self.p.add(key, val);
@@ -534,7 +658,7 @@ impl KdlNodeBuilder {
         self.p = self.p.add(key, val);
         self
     }
-    pub fn props(self, props: &mut HashMap<&mut str, KdlValue>) -> Self {
+    pub fn props(mut self, props: &mut HashMap<&mut str, KdlValue>) -> Self {
         self.properties(props)
     }
     pub fn property(mut self, key: &mut str, val: KdlValue) -> Self {
@@ -573,39 +697,38 @@ impl KdlNodeBuilder {
         self
     }
 
-    // pub fn child(mut self, child: & mut KdlNodeBuilder) -> Self {
-    //     self.c.push(&mut child);
-    //     self
-    // }
-    // pub fn children(mut self, children: & mut Vec<KdlNodeBuilder>) -> Self {
-    //     self.c.extend(children);
-    //     self
-    // }
-    // pub fn set_child(mut self, index: usize, child: & mut KdlNodeBuilder) -> Self {
-    //     self.c.remove(index);
-    //     self.c.insert(index, child);
-    //     self
-    // }
-    // pub fn set_children(mut self, children: & mut Vec<& mut KdlNodeBuilder>) -> Self {
-    //     self.c = children;
-    //     self
-    // }
-    // pub fn remove_child(mut self, child: usize) -> Self {
-    //     self.c.remove(child);
-    //     self
-    // }
-    // pub fn remove_children(mut self) -> Self {
-    //     self.c.clear();
-    // self
-    // }
-    pub fn str(mut self, val: &mut str) -> Self {
-        self.v = self.v.str(val);
+    pub fn child(mut self, child: KdlNodeBuilder) -> Self {
+        self.c.0.push(child);
         self
     }
-    // pub fn s(mut self, val: & mut str) -> Self {
-    //     self.v = self.v.s(val);
-    //     self
-    // }
+    pub fn children(mut self, children: Vec<KdlNodeBuilder>) -> Self {
+        self.c.0.extend(children);
+        self
+    }
+    pub fn insert_child(mut self, index: usize, child: KdlNodeBuilder) -> Self {
+        self.c.0.insert(index, child);
+        self
+    }
+    pub fn set_children(mut self, children: Vec<KdlNodeBuilder>) -> Self {
+        self.c.0 = children;
+        self
+    }
+    pub fn remove_child(mut self, child: usize) -> Self {
+        self.c.0.remove(child);
+        self
+    }
+    pub fn remove_children(mut self) -> Self {
+        self.c.0.clear();
+        self
+    }
+    pub fn str(mut self, val: &mut str) -> Self {
+        self.v.vals.0.push(KdlValue::String(val.to_string()));
+        self
+    }
+    pub fn s(mut self, val: &mut str) -> Self {
+        self.v = self.v.s(val);
+        self
+    }
 
     pub fn int(mut self, val: i64) -> Self {
         self.v = self.v.int(val);
